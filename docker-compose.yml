@@ -1,0 +1,65 @@
+services:
+  futu-opend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SSHD_IPADDR: ${SSHD_IPADDR:-0.0.0.0}
+        SSHD_PORT: ${SSHD_PORT:-34000}
+        ROOT_PASS: ${ROOT_PASS:-opend@kline}
+        FUTU_TRADE_ACCOUNT: ${FUTU_TRADE_ACCOUNT}
+        FUTU_TRADE_PWD: ${FUTU_TRADE_PWD}
+        FUTU_OPEND_IP: ${FUTU_OPEND_IP:-0.0.0.0}
+
+    image: ${IMAGE_NAME:-futu-opend}:${IMAGE_TAG:-latest}
+    container_name: ${CONTAINER_NAME:-futu-opend}
+
+    restart: ${RESTART_POLICY:-unless-stopped}
+
+    # 端口映射
+    ports:
+      # OpenD API 端口 (用于 SDK 连接)
+      - "${FUTU_OPEND_PORT:-11111}:${FUTU_OPEND_PORT:-11111}"
+      # SSH 端口 (用于远程管理)
+      - "${SSHD_PORT:-34000}:${SSHD_PORT:-34000}"
+
+    # 数据卷挂载
+    volumes:
+      # 日志持久化
+      - ./logs:/var/log/supervisor
+
+    # 环境变量
+    environment:
+      - TZ=Asia/Shanghai
+      - FUTU_OPEND_PORT=${FUTU_OPEND_PORT:-11111}
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "pgrep", "-x", "FutuOpenD"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# 网络配置
+networks:
+  default:
+    name: ${NETWORK_NAME:-futu-network}
+    driver: bridge
