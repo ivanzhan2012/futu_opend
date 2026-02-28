@@ -53,16 +53,16 @@ RUN apt-get clean && \
 ARG SSHD_IPADDR=0.0.0.0
 ARG SSHD_PORT=34000
 ARG ROOT_PASS=opend@kline
-ARG FUTU_TRADE_ACCOUNT=275150
-ARG FUTU_TRADE_PWD=123456
+ARG FUTU_LOGIN_ACCOUNT=275150
+ARG FUTU_LOGIN_PWD=123456
 ARG FUTU_OPEND_IP=0.0.0.0
 
 # 设置环境变量
 ENV SSHD_IPADDR=$SSHD_IPADDR
 ENV SSHD_PORT=$SSHD_PORT
 ENV ROOT_PASS=$ROOT_PASS
-ENV FUTU_TRADE_ACCOUNT=$FUTU_TRADE_ACCOUNT
-ENV FUTU_TRADE_PWD=$FUTU_TRADE_PWD
+ENV FUTU_LOGIN_ACCOUNT=$FUTU_LOGIN_ACCOUNT
+ENV FUTU_LOGIN_PWD=$FUTU_LOGIN_PWD
 ENV FUTU_OPEND_IP=$FUTU_OPEND_IP
 
 # 配置 SSH
@@ -84,27 +84,23 @@ COPY supervisor_opend.conf /etc/supervisor/conf.d/
 # 设置工作目录
 WORKDIR /app
 
-# 复制并解压 FutuOpenD
-COPY Futu_OpenD_9.6.5618_Ubuntu18.04.tar.gz /tmp/
-RUN tar -xzf /tmp/Futu_OpenD_9.6.5618_Ubuntu18.04.tar.gz -C /app/ && \
-    mv /app/Futu_OpenD_9.6.5618_Ubuntu18.04/Futu_OpenD_9.6.5618_Ubuntu18.04 /app/FutuOpenD && \
-    rm -rf /app/Futu_OpenD_9.6.5618_Ubuntu18.04 && \
-    rm /tmp/Futu_OpenD_9.6.5618_Ubuntu18.04.tar.gz
+# 复制 FutuOpenD
+COPY Futu_OpenD_9.6.5618_Ubuntu18.04 /app/FutuOpenD
 
 # 复制私钥
 COPY .futu_private_key.pem /app/FutuOpenD/.futu_private_key.pem
 
 # 修改 FutuOpenD 配置文件
 # 注意：原始 XML 中 <login_pwd_md5> 和 <rsa_private_key> 是被注释的，需要特殊处理
-# 如果 FUTU_TRADE_PWD 是 32 位十六进制，使用 login_pwd_md5；否则使用 login_pwd
-RUN sed -i "s/<login_account>[^<]*<\/login_account>/<login_account>$FUTU_TRADE_ACCOUNT<\/login_account>/" /app/FutuOpenD/FutuOpenD.xml && \
+# 如果 FUTU_LOGIN_PWD 是 32 位十六进制，使用 login_pwd_md5；否则使用 login_pwd
+RUN sed -i "s/<login_account>[^<]*<\/login_account>/<login_account>$FUTU_LOGIN_ACCOUNT<\/login_account>/" /app/FutuOpenD/FutuOpenD.xml && \
     sed -i "s/<ip>[^<]*<\/ip>/<ip>$FUTU_OPEND_IP<\/ip>/" /app/FutuOpenD/FutuOpenD.xml && \
     sed -i "s|<!-- <rsa_private_key>[^<]*</rsa_private_key> -->|<rsa_private_key>/app/FutuOpenD/.futu_private_key.pem</rsa_private_key>|" /app/FutuOpenD/FutuOpenD.xml && \
-    if [ ${#FUTU_TRADE_PWD} -eq 32 ] && echo "$FUTU_TRADE_PWD" | grep -qE '^[a-fA-F0-9]{32}$'; then \
-        sed -i "s|<!-- <login_pwd_md5>[^<]*</login_pwd_md5> -->|<login_pwd_md5>$FUTU_TRADE_PWD</login_pwd_md5>|" /app/FutuOpenD/FutuOpenD.xml && \
+    if [ ${#FUTU_LOGIN_PWD} -eq 32 ] && echo "$FUTU_LOGIN_PWD" | grep -qE '^[a-fA-F0-9]{32}$'; then \
+        sed -i "s|<!-- <login_pwd_md5>[^<]*</login_pwd_md5> -->|<login_pwd_md5>$FUTU_LOGIN_PWD</login_pwd_md5>|" /app/FutuOpenD/FutuOpenD.xml && \
         sed -i "s|<login_pwd>[^<]*</login_pwd>|<!-- <login_pwd>123456</login_pwd> -->|" /app/FutuOpenD/FutuOpenD.xml; \
     else \
-        sed -i "s|<login_pwd>[^<]*</login_pwd>|<login_pwd>$FUTU_TRADE_PWD</login_pwd>|" /app/FutuOpenD/FutuOpenD.xml && \
+        sed -i "s|<login_pwd>[^<]*</login_pwd>|<login_pwd>$FUTU_LOGIN_PWD</login_pwd>|" /app/FutuOpenD/FutuOpenD.xml && \
         sed -i "s|<!-- <login_pwd_md5>[^<]*</login_pwd_md5> -->|<!-- <login_pwd_md5>skipped</login_pwd_md5> -->|" /app/FutuOpenD/FutuOpenD.xml; \
     fi
 

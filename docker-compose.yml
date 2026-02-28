@@ -7,8 +7,8 @@ services:
         SSHD_IPADDR: ${SSHD_IPADDR:-0.0.0.0}
         SSHD_PORT: ${SSHD_PORT:-34000}
         ROOT_PASS: ${ROOT_PASS:-opend@kline}
-        FUTU_TRADE_ACCOUNT: ${FUTU_TRADE_ACCOUNT}
-        FUTU_TRADE_PWD: ${FUTU_TRADE_PWD}
+        FUTU_LOGIN_ACCOUNT: ${FUTU_LOGIN_ACCOUNT}
+        FUTU_LOGIN_PWD: ${FUTU_LOGIN_PWD}
         FUTU_OPEND_IP: ${FUTU_OPEND_IP:-0.0.0.0}
 
     image: ${IMAGE_NAME:-futu-opend}:${IMAGE_TAG:-latest}
@@ -62,4 +62,4 @@ services:
 networks:
   default:
     name: ${NETWORK_NAME:-futu-network}
-    driver: bridge
+    external: true

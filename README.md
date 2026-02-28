@@ -23,8 +23,8 @@ cp .env.example .env
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `FUTU_TRADE_ACCOUNT` | 富途交易账号 | - |
-| `FUTU_TRADE_PWD` | 交易密码或 MD5 值 | - |
+| `FUTU_LOGIN_ACCOUNT` | 富途登录账号 | - |
+| `FUTU_LOGIN_PWD` | 登录密码或 MD5 值 | - |
 | `FUTU_OPEND_PORT` | OpenD API 端口 | 11111 |
 | `SSHD_PORT` | SSH 管理端口 | 34000 |
 | `ROOT_PASS` | SSH root 密码 | dzqBLfC7 |
