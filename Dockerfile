@@ -56,6 +56,7 @@ ARG ROOT_PASS=opend@kline
 ARG FUTU_LOGIN_ACCOUNT=275150
 ARG FUTU_LOGIN_PWD=123456
 ARG FUTU_OPEND_IP=0.0.0.0
+ARG AUTO_HOLD_QUOTE_RIGHT=0
 
 # 设置环境变量
 ENV SSHD_IPADDR=$SSHD_IPADDR
@@ -64,6 +65,7 @@ ENV ROOT_PASS=$ROOT_PASS
 ENV FUTU_LOGIN_ACCOUNT=$FUTU_LOGIN_ACCOUNT
 ENV FUTU_LOGIN_PWD=$FUTU_LOGIN_PWD
 ENV FUTU_OPEND_IP=$FUTU_OPEND_IP
+ENV AUTO_HOLD_QUOTE_RIGHT=$AUTO_HOLD_QUOTE_RIGHT
 
 # 配置 SSH
 RUN mkdir -p /var/run/sshd
@@ -95,6 +97,7 @@ COPY .futu_private_key.pem /app/FutuOpenD/.futu_private_key.pem
 # 如果 FUTU_LOGIN_PWD 是 32 位十六进制，使用 login_pwd_md5；否则使用 login_pwd
 RUN sed -i "s/<login_account>[^<]*<\/login_account>/<login_account>$FUTU_LOGIN_ACCOUNT<\/login_account>/" /app/FutuOpenD/FutuOpenD.xml && \
     sed -i "s/<ip>[^<]*<\/ip>/<ip>$FUTU_OPEND_IP<\/ip>/" /app/FutuOpenD/FutuOpenD.xml && \
+    sed -i "s/<auto_hold_quote_right>[^<]*<\/auto_hold_quote_right>/<auto_hold_quote_right>$AUTO_HOLD_QUOTE_RIGHT<\/auto_hold_quote_right>/" /app/FutuOpenD/FutuOpenD.xml && \
     sed -i "s|<!-- <rsa_private_key>[^<]*</rsa_private_key> -->|<rsa_private_key>/app/FutuOpenD/.futu_private_key.pem</rsa_private_key>|" /app/FutuOpenD/FutuOpenD.xml && \
     if [ ${#FUTU_LOGIN_PWD} -eq 32 ] && echo "$FUTU_LOGIN_PWD" | grep -qE '^[a-fA-F0-9]{32}$'; then \
         sed -i "s|<!-- <login_pwd_md5>[^<]*</login_pwd_md5> -->|<login_pwd_md5>$FUTU_LOGIN_PWD</login_pwd_md5>|" /app/FutuOpenD/FutuOpenD.xml && \
