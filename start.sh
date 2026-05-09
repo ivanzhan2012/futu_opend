@@ -12,6 +12,20 @@ mkdir -p /var/log/supervisor
 mkdir -p /var/run/sshd
 mkdir -p "$OPEND_DIR"
 
+# 让 ubuntu 用户可以写 supervisor 日志
+chown -R ubuntu:ubuntu /var/log/supervisor
+
+# ---- 注入 SSH 公钥（可选）----
+mkdir -p /root/.ssh
+chmod 700 /root/.ssh
+if [ -n "$SSH_AUTHORIZED_KEYS" ]; then
+    echo "$SSH_AUTHORIZED_KEYS" > /root/.ssh/authorized_keys
+    chmod 600 /root/.ssh/authorized_keys
+    echo "[init] SSH 公钥已注入 (/root/.ssh/authorized_keys)"
+else
+    echo "[init] SSH_AUTHORIZED_KEYS 未设置，跳过公钥注入（可用 docker exec 进入容器）"
+fi
+
 # ---- 从挂载的只读源目录复制 OpenD 文件到容器内可写目录 ----
 if [ ! -d "$OPEND_SRC" ] || [ -z "$(ls -A "$OPEND_SRC" 2>/dev/null)" ]; then
     echo "Error: OpenD source not mounted at $OPEND_SRC. 请在 .env 中配置 FUTU_OPEND_PATH。"
@@ -28,6 +42,8 @@ if [ "$RSA_ENCRYPT_ENABLE" = "true" ] || [ "$RSA_ENCRYPT_ENABLE" = "1" ]; then
     if [ -f "$PRIVATE_KEY_SRC" ]; then
         echo "[init] 复制私钥 ..."
         cp "$PRIVATE_KEY_SRC" "$PRIVATE_KEY_DST"
+        chmod 600 "$PRIVATE_KEY_DST"
+        chown ubuntu:ubuntu "$PRIVATE_KEY_DST"
     else
         echo "[warn] RSA_ENCRYPT_ENABLE=true 但未找到私钥 $PRIVATE_KEY_SRC，将跳过 rsa_private_key 配置"
     fi
@@ -64,7 +80,13 @@ else
     sed -i "s|<!-- <login_pwd_md5>[^<]*</login_pwd_md5> -->|<!-- <login_pwd_md5>skipped</login_pwd_md5> -->|" "$XML_FILE"
 fi
 
+# 确保 OpenD 数据目录存在
+mkdir -p /home/ubuntu/.com.futunn.FutuOpenD
+
 chmod -R 755 "$OPEND_DIR"
+
+# 将 OpenD 运行目录和数据目录归属 ubuntu 用户
+chown -R ubuntu:ubuntu "$OPEND_DIR" /home/ubuntu/.com.futunn.FutuOpenD
 
 # 启动 supervisor
 /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisor_opend.conf &

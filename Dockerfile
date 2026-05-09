@@ -19,6 +19,7 @@ RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
+    tzdata \
     curl \
     wget \
     vim \
@@ -34,26 +35,31 @@ RUN apt-get clean && \
 # 构建期参数（仅 SSH 相关需要在构建时写入镜像）
 ARG SSHD_IPADDR=0.0.0.0
 ARG SSHD_PORT=34000
-ARG ROOT_PASS=opend@kline
 ARG FUTU_OPEND_PORT=11111
 
 ENV SSHD_IPADDR=$SSHD_IPADDR
 ENV SSHD_PORT=$SSHD_PORT
-ENV ROOT_PASS=$ROOT_PASS
 ENV FUTU_OPEND_PORT=$FUTU_OPEND_PORT
 
-# 配置 SSH
-RUN mkdir -p /var/run/sshd
-RUN echo "root:$ROOT_PASS"| chpasswd
-RUN sed -i "s/#Port 22/Port $SSHD_PORT/" /etc/ssh/sshd_config && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i "s/#ListenAddress 0.0.0.0/ListenAddress $SSHD_IPADDR/" /etc/ssh/sshd_config
+# 配置 SSH：仅允许密钥登录，禁用密码认证
+RUN mkdir -p /var/run/sshd /root/.ssh && \
+    chmod 700 /root/.ssh && \
+    sed -i "s/#Port 22/Port $SSHD_PORT/" /etc/ssh/sshd_config && \
+    sed -i "s/#ListenAddress 0.0.0.0/ListenAddress $SSHD_IPADDR/" /etc/ssh/sshd_config && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config && \
+    sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
 
-# 创建必要的目录
+# 创建非 root 用户 ubuntu，用于运行 FutuOpenD
+RUN useradd -m -s /bin/bash ubuntu
+
+# 创建必要的目录，并将 /app 归属 ubuntu
 RUN mkdir -p /var/log/supervisor && \
     mkdir -p /var/run/sshd && \
     mkdir -p /app/logs && \
-    mkdir -p /app/FutuOpenD
+    mkdir -p /app/FutuOpenD && \
+    mkdir -p /home/ubuntu/.com.futunn.FutuOpenD && \
+    chown -R ubuntu:ubuntu /app /home/ubuntu/.com.futunn.FutuOpenD
 
 # 配置 supervisor
 RUN mkdir -p /etc/supervisor/conf.d

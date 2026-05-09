@@ -11,36 +11,18 @@ XML_FILE="$OPEND_DIR/FutuOpenD.xml"
 SUPERVISOR_CONF="/etc/supervisor/conf.d/supervisor_opend.conf"
 
 start() {
-    echo "启动 FutuOpenD..."
-    cd $OPEND_DIR
-    nohup $OPEND_CMD -no_monitor=0 -console=0 >> $LOG_DIR/opend.out.log 2>> $LOG_DIR/opend.err.log &
-    sleep 1
-    if pgrep -f "FutuOpenD" > /dev/null; then
-        echo "FutuOpenD 已启动 (PID: $(pgrep -f 'FutuOpenD'))"
-    else
-        echo "启动失败，请检查日志: $LOG_DIR/opend.err.log"
-    fi
+    echo "启动 FutuOpenD (通过 supervisor 管理) ..."
+    supervisorctl start opend
 }
 
 stop() {
-    echo "停止 FutuOpenD..."
-    pkill -f "FutuOpenD"
-    sleep 1
-    if pgrep -f "FutuOpenD" > /dev/null; then
-        echo "停止失败，强制杀死进程..."
-        pkill -9 -f "FutuOpenD"
-    else
-        echo "FutuOpenD 已停止"
-    fi
+    echo "停止 FutuOpenD (通过 supervisor 管理) ..."
+    supervisorctl stop opend
 }
 
 status() {
-    if pgrep -f "FutuOpenD" > /dev/null; then
-        echo "FutuOpenD 运行中 (PID: $(pgrep -f 'FutuOpenD'))"
-        ps aux | grep -E "FutuOpenD|PID" | grep -v grep
-    else
-        echo "FutuOpenD 未运行"
-    fi
+    echo "=== Supervisor 管理状态 ==="
+    supervisorctl status opend
     echo ""
     if [ -f "$SUPERVISOR_CONF" ] && grep -q "autostart=true" "$SUPERVISOR_CONF"; then
         echo "Supervisor 自动拉起: 已启用（容器重启时 opend 将自动启动）"
@@ -72,6 +54,7 @@ enable_rsa() {
     echo "复制私钥 ..."
     cp "$PRIVATE_KEY_SRC" "$PRIVATE_KEY_DST"
     chmod 600 "$PRIVATE_KEY_DST"
+    chown ubuntu:ubuntu "$PRIVATE_KEY_DST"
 
     echo "注入私钥到 XML ..."
     if grep -q "<!-- <rsa_private_key>" "$XML_FILE"; then
@@ -112,6 +95,42 @@ disable_rsa() {
     stop
     sleep 2
     start
+}
+
+first_login() {
+    if pgrep -f "FutuOpenD" > /dev/null; then
+        echo "检测到 FutuOpenD 正在运行，先停止..."
+        stop
+        sleep 2
+    fi
+
+    echo ""
+    echo "============================================================"
+    echo "  首次登录交互模式"
+    echo "  FutuOpenD 将以控制台模式前台运行，请："
+    echo "  1. 等待登录提示出现"
+    echo "  2. 按提示输入手机短信验证码完成登录"
+    echo "  3. 登录成功后，输入 exit 退出首次登录"
+    echo "  4. 退出后，重新执行 opend_ctl.sh start 或 restart 正常启动"
+    echo "============================================================"
+    echo ""
+
+    cd "$OPEND_DIR"
+    runuser -u ubuntu -- "$OPEND_CMD"
+
+    # 交互式登录结束后，检查最近 GTW 日志验证是否真正登录成功
+    echo ""
+    local log_dir="/home/ubuntu/.com.futunn.FutuOpenD/Log"
+    local latest_gtw
+    latest_gtw=$(ls -t ${log_dir}/GTWLog_*.log 2>/dev/null | head -1)
+
+    if [ -n "$latest_gtw" ] && grep -q 'ProgramStatusType_Ready' "$latest_gtw" 2>/dev/null; then
+        echo "[OK] GTW 日志确认首次登录成功"
+    elif [ -n "$latest_gtw" ] && grep -q 'req_phone_verify_code' "$latest_gtw" 2>/dev/null; then
+        echo "[WARN] 最近会话仍需短信验证，首次登录未完成，请重新执行 first-login"
+    else
+        echo "[WARN] GTW 日志未检测到明确的登录结果，请重新执行 first-login"
+    fi
 }
 
 enable_autostart() {
@@ -173,8 +192,11 @@ case "$1" in
     disable-autostart)
         disable_autostart
         ;;
+    first-login)
+        first_login
+        ;;
     *)
-        echo "用法: $0 {start|stop|status|restart|log|enable-rsa|disable-rsa|enable-autostart|disable-autostart}"
+        echo "用法: $0 {start|stop|status|restart|log|enable-rsa|disable-rsa|enable-autostart|disable-autostart|first-login}"
         echo ""
         echo "  start            - 启动 FutuOpenD"
         echo "  stop             - 停止 FutuOpenD"
@@ -185,6 +207,7 @@ case "$1" in
         echo "  disable-rsa      - 禁用 RSA 加密（注释私钥并重启）"
         echo "  enable-autostart - 启用 supervisor 自动拉起（容器重启时自动启动 opend）"
         echo "  disable-autostart- 禁用 supervisor 自动拉起（容器重启时不启动 opend）"
+        echo "  first-login      - 首次登录模式（交互式前台运行，用于输入短信验证码）"
         exit 1
         ;;
 esac

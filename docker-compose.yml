@@ -6,7 +6,6 @@ services:
       args:
         SSHD_IPADDR: ${SSHD_IPADDR:-0.0.0.0}
         SSHD_PORT: ${SSHD_PORT:-34000}
-        ROOT_PASS: ${ROOT_PASS:-opend@kline}
         FUTU_OPEND_PORT: ${FUTU_OPEND_PORT:-11111}
 
     image: ${IMAGE_NAME:-futu-opend}:${IMAGE_TAG:-latest}
@@ -29,10 +28,14 @@ services:
       - ${FUTU_OPEND_PATH:-./Futu_OpenD_10.5.6508_Ubuntu18.04}:/opt/opend_src:ro
       # 富途私钥（只读）
       - ${FUTU_PRIVATE_KEY:-./.futu_private_key.pem}:/opt/.futu_private_key.pem:ro
+      # OpenD 运行数据持久化（含 Device.dat 设备标识和运行日志）
+      # 重建容器后不会再触发设备锁验证，参考：https://openapi.futunn.com/futu-api-doc/qa/opend.html Q6
+      - ${OPEND_DATA_VOLUME:-opend-data}:/home/ubuntu/.com.futunn.FutuOpenD
 
     # 环境变量（运行时注入 XML 使用）
     environment:
       - TZ=Asia/Shanghai
+      - SSH_AUTHORIZED_KEYS=${SSH_AUTHORIZED_KEYS:-}
       - FUTU_LOGIN_ACCOUNT=${FUTU_LOGIN_ACCOUNT}
       - FUTU_LOGIN_PWD=${FUTU_LOGIN_PWD}
       - FUTU_OPEND_IP=${FUTU_OPEND_IP:-0.0.0.0}
@@ -40,15 +43,15 @@ services:
       - AUTO_HOLD_QUOTE_RIGHT=${AUTO_HOLD_QUOTE_RIGHT:-0}
       - RSA_ENCRYPT_ENABLE=${RSA_ENCRYPT_ENABLE:-false}
 
-    # 资源限制
+    # 资源限制（MEMORY_LIMIT 最大建议 2G，默认 2048M；MEMORY_RESERVATION 默认 256M）
     deploy:
       resources:
         limits:
           cpus: '1'
-          memory: 512M
+          memory: ${MEMORY_LIMIT:-2048M}
         reservations:
           cpus: '0.5'
-          memory: 256M
+          memory: ${MEMORY_RESERVATION:-256M}
 
     # 健康检查
     healthcheck:
@@ -64,6 +67,11 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+# 命名卷（opend_data 默认卷名，可通过 OPEND_DATA_VOLUME 覆盖为绑定路径）
+volumes:
+  opend-data:
+    name: ${OPEND_DATA_VOLUME:-opend-data}
 
 # 网络配置
 networks:
