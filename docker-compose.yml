@@ -26,7 +26,7 @@ services:
       # 日志持久化
       - ./logs:/var/log/supervisor
       # OpenD 版本目录（只读挂载，容器启动时会复制到 /app/FutuOpenD 再做配置注入）
-      - ${FUTU_OPEND_PATH:-./Futu_OpenD_9.6.5618_Ubuntu18.04}:/opt/opend_src:ro
+      - ${FUTU_OPEND_PATH:-./Futu_OpenD_10.5.6508_Ubuntu18.04}:/opt/opend_src:ro
       # 富途私钥（只读）
       - ${FUTU_PRIVATE_KEY:-./.futu_private_key.pem}:/opt/.futu_private_key.pem:ro
 
