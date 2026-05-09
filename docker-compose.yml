@@ -38,6 +38,7 @@ services:
       - FUTU_OPEND_IP=${FUTU_OPEND_IP:-0.0.0.0}
       - FUTU_OPEND_PORT=${FUTU_OPEND_PORT:-11111}
       - AUTO_HOLD_QUOTE_RIGHT=${AUTO_HOLD_QUOTE_RIGHT:-0}
+      - RSA_ENCRYPT_ENABLE=${RSA_ENCRYPT_ENABLE:-false}
 
     # 资源限制
     deploy:

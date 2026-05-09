@@ -14,34 +14,16 @@ RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list && 
     echo "deb http://mirrors.aliyun.com/ubuntu/ jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list.d/aliyun.list && \
     echo "deb http://mirrors.aliyun.com/ubuntu/ jammy-security main restricted universe multiverse" >> /etc/apt/sources.list.d/aliyun.list
 
-# 安装基础工具和依赖
+# 安装运行时依赖（网络检查 + 排障 + 核心服务）
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get update && \
-    apt-get install -y --fix-missing \
-    build-essential \
-    pkg-config \
-    git \
+    apt-get install -y --no-install-recommends \
     curl \
     wget \
     vim \
     net-tools \
     iputils-ping \
-    libssl-dev \
-    libffi-dev \
-    libsqlite3-dev \
-    libreadline-dev \
-    libbz2-dev \
-    libncurses5-dev \
-    libncursesw5-dev \
-    xz-utils \
-    tk-dev \
-    default-libmysqlclient-dev \
-    sudo \
-    python3 \
-    python3-dev \
-    python3-venv \
-    python3-pip \
     netcat-traditional \
     openssh-server \
     supervisor \
