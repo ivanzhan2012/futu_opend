@@ -1,0 +1,33 @@
+# gitleaks 配置文件
+# 文档: https://github.com/gitleaks/gitleaks#configuration
+
+title = "futu-opend gitleaks config"
+
+[extend]
+# 使用官方默认规则集
+useDefault = true
+
+[allowlist]
+description = "排除模板示例值和文档注释中的误报"
+
+# 排除已知的示例/模板文件中的误报路径
+paths = [
+    # FutuOpenD 官方提供的 XML 配置模板，其中的账号密码均为示例占位值
+    '''Futu_OpenD_.*/FutuOpenD\.xml''',
+]
+
+# 排除明显的占位符 commit
+commits = []
+
+# 全局正则排除：占位符/示例值不算敏感信息
+regexes = [
+    # 忽略类似 123456、000000 等明显示例密码
+    '''login_pwd>123456<''',
+    # 忽略示例账号
+    '''login_account>100000<''',
+    # 忽略 .env.example 中的明确占位符
+    '''your_strong_password_here''',
+    '''your_password_here''',
+    '''<YOUR_''',
+    '''YOUR_.*_HERE''',
+]
