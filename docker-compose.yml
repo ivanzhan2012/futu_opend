@@ -9,7 +9,6 @@ services:
         FUTU_OPEND_PKG_NAME: ${FUTU_OPEND_PKG_NAME:-Futu_OpenD_10.5.6508_Ubuntu18.04}
 
     image: ${IMAGE_NAME:-futu-opend}:${IMAGE_TAG:-latest}
-    container_name: ${CONTAINER_NAME:-futu-opend}
 
     restart: ${RESTART_POLICY:-unless-stopped}
 
@@ -20,7 +19,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ${FUTU_PRIVATE_KEY:-./.futu_private_key.pem}:/opt/.futu_private_key.pem:ro
-      - ${OPEND_DATA_VOLUME:-opend-data}:/home/ubuntu/.com.futunn.FutuOpenD
+      - opend-data:/home/ubuntu/.com.futunn.FutuOpenD
 
     environment:
       - TZ=Asia/Shanghai
@@ -57,7 +56,6 @@ services:
 
 volumes:
   opend-data:
-    name: ${OPEND_DATA_VOLUME:-opend-data}
 
 networks:
   default:

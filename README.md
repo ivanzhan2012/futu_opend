@@ -74,6 +74,12 @@ OpenD 首次在新设备启动需要短信验证码：
 
 验证通过后，设备标识会持久化到 Docker volume，后续重建容器无需再次验证。
 
+### 步骤 7：验证部署（可选）
+
+```bash
+python3 verify_opend.py
+```
+
 ### 完成
 
 服务已运行。之后只需：
@@ -100,7 +106,6 @@ OpenD 首次在新设备启动需要短信验证码：
 | `FUTU_OPEND_IP` | OpenD 监听 IP | `0.0.0.0` |
 | `FUTU_TELNET_IP` | Telnet 监听 IP | `0.0.0.0` |
 | `AUTO_HOLD_QUOTE_RIGHT` | 自动抢回高级行情权限（0/1） | `1` |
-| `CONTAINER_NAME` | 容器名称 | `futu-opend` |
 | `IMAGE_NAME` | 镜像名称 | `futu-opend` |
 | `IMAGE_TAG` | 镜像标签 | `latest` |
 | `RESTART_POLICY` | Docker 重启策略 | `unless-stopped` |
@@ -157,6 +162,7 @@ OpenD 首次在新设备启动需要短信验证码：
 ├── start.sh                 # 容器启动入口
 ├── opend_ctl.sh             # OpenD 控制脚本（容器内使用）
 ├── generate_futu_pwd_md5.py # 密码 MD5 生成工具
+├── verify_opend.py          # 部署验证（容器进程 + API 连接）
 ├── .env.example             # 环境变量模板
 ├── .env                     # 实际配置（不提交 git）
 ├── .futu_private_key.pem    # RSA 私钥（不提交 git）
@@ -170,4 +176,5 @@ OpenD 首次在新设备启动需要短信验证码：
 1. `.env` 和 `.futu_private_key.pem` 不要提交到版本控制（已在 `.gitignore` 中排除）
 2. 升级 OpenD 版本：修改 `.env` 中的 `FUTU_OPEND_DOWNLOAD_URL` 和 `FUTU_OPEND_PKG_NAME`，然后 `./deploy_opend.sh rebuild`
 3. `opend-data` Docker volume 持久化了设备标识，重建容器无需重新短信验证
-4. 本地离线包（`Futu_OpenD_xxx.tar.gz`）放项目根目录即可被构建自动识别，无需提交 git
+4. 同一台机器跑多个 OpenD 实例时，须使用不同项目目录或 `COMPOSE_PROJECT_NAME`，并错开 `FUTU_OPEND_PORT` / `FUTU_TELNET_PORT`，避免宿主机端口冲突
+5. 本地离线包（`Futu_OpenD_xxx.tar.gz`）放项目根目录即可被构建自动识别，无需提交 git

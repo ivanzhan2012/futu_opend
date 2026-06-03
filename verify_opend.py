@@ -6,6 +6,7 @@ FutuOpenD 部署验证脚本
 
 import os
 import sys
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -14,6 +15,8 @@ FAIL = "[FAIL]"
 WARN = "[WARN]"
 INFO = "[INFO]"
 
+SCRIPT_DIR = Path(__file__).parent.resolve()
+
 def separator(title=""):
     if title:
         print(f"\n── {title} {'─' * (50 - len(title))}")
@@ -21,7 +24,7 @@ def separator(title=""):
         print("─" * 56)
 
 # ── 1. 读取 .env ──────────────────────────────────────────────────────────────
-env_file = Path(__file__).parent / ".env"
+env_file = SCRIPT_DIR / ".env"
 if not env_file.exists():
     print(f"{FAIL} 未找到 .env 文件: {env_file}")
     sys.exit(1)
@@ -39,20 +42,15 @@ OPEND_PORT    = int(config.get("FUTU_OPEND_PORT", 11111))
 RSA_ENABLE    = config.get("RSA_ENCRYPT_ENABLE", "false").lower() == "true"
 PRIVATE_KEY   = config.get("FUTU_PRIVATE_KEY", "")
 LOGIN_ACCOUNT = config.get("FUTU_LOGIN_ACCOUNT", "(未设置)")
-CONTAINER     = config.get("CONTAINER_NAME", "futu-opend")
+COMPOSE_SERVICE = "futu-opend"
 
-# ── 2. 打印配置摘要 ────────────────────────────────────────────────────────────
-print("=" * 56)
-print("  FutuOpenD 部署验证")
-print("=" * 56)
-print(f"  容器名称       : {CONTAINER}")
-print(f"  OpenD 地址     : {OPEND_HOST}:{OPEND_PORT}")
-print(f"  登录账号       : {LOGIN_ACCOUNT}")
-rsa_status = f"已启用  (私钥: {PRIVATE_KEY})" if RSA_ENABLE else "未启用 (明文连接)"
-print(f"  RSA 加密       : {rsa_status}")
-
-# ── 3. 检查 Docker 容器状态 ───────────────────────────────────────────────────
-separator("Docker 容器状态")
+def compose_exec_cmd(*args: str) -> str:
+    """通过 docker-compose exec 进入服务（不依赖固定容器名）。"""
+    inner = " ".join(shlex.quote(a) for a in args)
+    return (
+        f"cd {shlex.quote(str(SCRIPT_DIR))} && "
+        f"docker-compose exec -T {shlex.quote(COMPOSE_SERVICE)} {inner}"
+    )
 
 def run(cmd):
     try:
@@ -61,37 +59,68 @@ def run(cmd):
     except Exception as e:
         return -1, str(e)
 
-ret, out = run(f"docker inspect --format='{{{{.State.Status}}}}' {CONTAINER} 2>/dev/null")
+# ── 2. 打印配置摘要 ────────────────────────────────────────────────────────────
+print("=" * 56)
+print("  FutuOpenD 部署验证")
+print("=" * 56)
+print(f"  Compose 服务   : {COMPOSE_SERVICE}")
+print(f"  OpenD 地址     : {OPEND_HOST}:{OPEND_PORT}")
+print(f"  登录账号       : {LOGIN_ACCOUNT}")
+rsa_status = f"已启用  (私钥: {PRIVATE_KEY})" if RSA_ENABLE else "未启用 (明文连接)"
+print(f"  RSA 加密       : {rsa_status}")
+
+# ── 3. 检查 Docker 容器状态 ───────────────────────────────────────────────────
+separator("Docker 容器状态")
+
+ret, container_id = run(
+    f"cd {shlex.quote(str(SCRIPT_DIR))} && "
+    f"docker-compose ps -q {shlex.quote(COMPOSE_SERVICE)}"
+)
+if ret != 0 or not container_id:
+    print(f"{FAIL} Compose 服务 {COMPOSE_SERVICE!r} 未运行或 docker-compose 不可用")
+    print(f"\n  请先启动: cd {SCRIPT_DIR} && ./deploy_opend.sh start")
+    sys.exit(1)
+
+container_id = container_id.splitlines()[0].strip()
+
+ret, out = run(f"docker inspect --format='{{{{.State.Status}}}}' {container_id} 2>/dev/null")
 if ret != 0 or not out:
-    print(f"{FAIL} 容器 {CONTAINER!r} 不存在或 docker 不可用")
+    print(f"{FAIL} 无法读取容器状态 (id={container_id[:12]}...)")
     sys.exit(1)
 
 container_status = out.strip("'")
 health_ret, health_out = run(
-    f"docker inspect --format='{{{{.State.Health.Status}}}}' {CONTAINER} 2>/dev/null"
+    f"docker inspect --format='{{{{.State.Health.Status}}}}' {container_id} 2>/dev/null"
 )
 health_status = health_out.strip("'") if health_ret == 0 else "unknown"
 
+ret_name, container_name = run(
+    f"docker inspect --format='{{{{.Name}}}}' {container_id} 2>/dev/null"
+)
+display_name = container_name.lstrip("/") if ret_name == 0 and container_name else container_id[:12]
+
 status_icon = PASS if container_status == "running" else FAIL
-print(f"  {status_icon} 容器状态: {container_status}  健康检查: {health_status}")
+print(f"  {status_icon} 容器: {display_name}  状态: {container_status}  健康检查: {health_status}")
 
 if container_status != "running":
-    print(f"\n  请先启动容器: docker-compose up -d")
+    print(f"\n  请先启动容器: ./deploy_opend.sh start")
     sys.exit(1)
 
 # ── 4. 检查容器内 FutuOpenD 进程 ─────────────────────────────────────────────
 separator("FutuOpenD 进程状态")
 
-ret, pid_out = run(f"docker exec {CONTAINER} pgrep -x FutuOpenD")
+ret, pid_out = run(compose_exec_cmd("pgrep", "-x", "FutuOpenD"))
 opend_running = ret == 0 and pid_out.strip() != ""
 
 if opend_running:
     pids = pid_out.strip().replace("\n", ", ")
     print(f"  {PASS} FutuOpenD 运行中  PID: {pids}")
 
-    # 显示进程资源占用
     ret2, ps_out = run(
-        f"docker exec {CONTAINER} ps -o pid,user,%cpu,%mem,etime --no-headers -p {pids.split(',')[0].strip()}"
+        compose_exec_cmd(
+            "ps", "-o", "pid,user,%cpu,%mem,etime", "--no-headers",
+            "-p", pids.split(",")[0].strip(),
+        )
     )
     if ret2 == 0 and ps_out:
         print(f"       {'PID':>6}  {'USER':<10} {'%CPU':>5} {'%MEM':>5}  {'ELAPSED':>10}")
@@ -99,15 +128,17 @@ if opend_running:
 else:
     print(f"  {FAIL} FutuOpenD 未在容器内运行")
 
-    # 检查 supervisor autostart 配置
     ret3, sup_out = run(
-        f"docker exec {CONTAINER} grep -m1 autostart /etc/supervisor/conf.d/supervisor_opend.conf"
+        compose_exec_cmd(
+            "grep", "-m1", "autostart",
+            "/etc/supervisor/conf.d/supervisor_opend.conf",
+        )
     )
     if "autostart=false" in sup_out:
         print(f"\n  {WARN} Supervisor autostart=false，需要手动启动 OpenD：")
-        print(f"       docker exec -it {CONTAINER} /app/opend_ctl.sh start")
+        print(f"       ./deploy_opend.sh exec   # 进入容器后执行 /app/opend_ctl.sh start")
         print(f"\n  若是首次部署，需先完成手机短信验证：")
-        print(f"       docker exec -it {CONTAINER} /app/opend_ctl.sh first-login")
+        print(f"       ./deploy_opend.sh first-login")
     sys.exit(1)
 
 # ── 5. 检查登录状态（最近一次 GTW 日志） ─────────────────────────────────────
@@ -115,10 +146,11 @@ separator("登录状态")
 
 LOG_DIR = "/home/ubuntu/.com.futunn.FutuOpenD/Log"
 
-# 取最近一个 GTW 日志（按修改时间倒序）
 ret_ls, latest_gtw = run(
-    f"docker exec {CONTAINER} sh -c "
-    f"\"ls -t {LOG_DIR}/GTWLog_*.log 2>/dev/null | head -1\""
+    compose_exec_cmd(
+        "sh", "-c",
+        f"ls -t {LOG_DIR}/GTWLog_*.log 2>/dev/null | head -1",
+    )
 )
 if ret_ls != 0 or not latest_gtw:
     print(f"  {FAIL} 未找到 GTW 日志文件")
@@ -127,15 +159,11 @@ if ret_ls != 0 or not latest_gtw:
 
 print(f"  {INFO} 最近日志: {latest_gtw.split('/')[-1]}")
 
-# 检查最近日志中是否需要短信验证（首次登录未完成的标志）
-ret_sms, _ = run(
-    f"docker exec {CONTAINER} grep -q 'req_phone_verify_code' {latest_gtw}"
-)
+ret_sms, _ = run(compose_exec_cmd("grep", "-q", "req_phone_verify_code", latest_gtw))
 needs_sms = ret_sms == 0
 
-# 检查最近日志是否达到 Ready 状态
 ret_ready, _ = run(
-    f"docker exec {CONTAINER} grep -q 'ProgramStatusType_Ready' {latest_gtw}"
+    compose_exec_cmd("grep", "-q", "ProgramStatusType_Ready", latest_gtw)
 )
 is_ready = ret_ready == 0
 
@@ -162,12 +190,14 @@ if RSA_ENABLE:
         print(f"  {WARN} RSA_ENCRYPT_ENABLE=true 但 FUTU_PRIVATE_KEY 未配置")
         sys.exit(1)
     key_path = Path(PRIVATE_KEY)
+    if not key_path.is_absolute():
+        key_path = SCRIPT_DIR / key_path
     if not key_path.exists():
-        print(f"  {FAIL} 私钥文件不存在: {PRIVATE_KEY}")
+        print(f"  {FAIL} 私钥文件不存在: {key_path}")
         sys.exit(1)
     futu.SysConfig.set_init_rsa_file(str(key_path))
     futu.SysConfig.enable_proto_encrypt(str(key_path))
-    print(f"  {INFO} 已启用 RSA 加密 (私钥: {PRIVATE_KEY})")
+    print(f"  {INFO} 已启用 RSA 加密 (私钥: {key_path})")
 else:
     print(f"  {INFO} 未启用 RSA 加密（明文连接）")
 
@@ -233,8 +263,6 @@ else:
 # ── 8. 账户信息 ───────────────────────────────────────────────────────────────
 separator("交易账户")
 
-# OpenD 监听 0.0.0.0 时，从宿主机经 Docker NAT 连入的交易连接会被视为跨网请求，
-# 强制要求 RSA 加密。行情连接无此限制，因此 quote_ctx 可正常使用。
 CROSS_NET_MSG = "跨网通信"
 
 def _query_accounts(host, port):
@@ -260,7 +288,6 @@ def _query_accounts(host, port):
         if not rows:
             return 0, None
         total = len(rows)
-        # 按环境分组展示
         env_groups: dict = {}
         for row in rows:
             if isinstance(row, dict):

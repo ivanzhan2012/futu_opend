@@ -28,6 +28,8 @@ load_env() {
     fi
 }
 
+COMPOSE_SERVICE="futu-opend"
+
 ensure_network() {
     local network_name="${NETWORK_NAME:-futu-network}"
     if docker network ls --format '{{.Name}}' | grep -q "^${network_name}$"; then
@@ -37,6 +39,14 @@ ensure_network() {
         docker network create --driver bridge "${network_name}"
         echo -e "${GREEN}[NETWORK]${NC} 网络 ${network_name} 创建成功"
     fi
+}
+
+compose_exec() {
+    docker-compose exec -T "${COMPOSE_SERVICE}" "$@"
+}
+
+compose_exec_interactive() {
+    docker-compose exec "${COMPOSE_SERVICE}" "$@"
 }
 
 show_help() {
@@ -119,34 +129,34 @@ show_status() {
     docker-compose ps
     echo ""
     echo -e "${BLUE}[INFO]${NC} OpenD 进程:"
-    docker exec ${CONTAINER_NAME:-futu-opend} pgrep -x FutuOpenD > /dev/null 2>&1 && \
+    compose_exec pgrep -x FutuOpenD > /dev/null 2>&1 && \
         echo "OpenD 运行中" || echo "OpenD 未运行"
 }
 
 exec_container() {
     echo -e "${BLUE}[EXEC]${NC} 进入容器..."
-    docker exec -it ${CONTAINER_NAME:-futu-opend} /bin/bash
+    compose_exec_interactive /bin/bash
 }
 
 is_first_login_done() {
     local log_dir="/home/ubuntu/.com.futunn.FutuOpenD/Log"
     local latest_gtw
-    latest_gtw=$(docker exec ${CONTAINER_NAME:-futu-opend} \
+    latest_gtw=$(compose_exec \
         sh -c "ls -t ${log_dir}/GTWLog_*.log 2>/dev/null | head -1")
     [ -z "$latest_gtw" ] && return 1
-    if docker exec ${CONTAINER_NAME:-futu-opend} grep -q 'req_phone_verify_code' "$latest_gtw" 2>/dev/null; then
+    if compose_exec grep -q 'req_phone_verify_code' "$latest_gtw" 2>/dev/null; then
         return 1
     fi
-    docker exec ${CONTAINER_NAME:-futu-opend} grep -q 'ProgramStatusType_Ready' "$latest_gtw" 2>/dev/null
+    compose_exec grep -q 'ProgramStatusType_Ready' "$latest_gtw" 2>/dev/null
 }
 
 needs_phone_verify() {
     local log_dir="/home/ubuntu/.com.futunn.FutuOpenD/Log"
     local latest_gtw
-    latest_gtw=$(docker exec ${CONTAINER_NAME:-futu-opend} \
+    latest_gtw=$(compose_exec \
         sh -c "ls -t ${log_dir}/GTWLog_*.log 2>/dev/null | head -1")
     [ -z "$latest_gtw" ] && return 1
-    docker exec ${CONTAINER_NAME:-futu-opend} grep -q 'req_phone_verify_code' "$latest_gtw" 2>/dev/null
+    compose_exec grep -q 'req_phone_verify_code' "$latest_gtw" 2>/dev/null
 }
 
 send_verify_code() {
@@ -158,7 +168,7 @@ send_verify_code() {
     fi
     echo -e "${BLUE}[VERIFY]${NC} 发送验证码到容器 telnet_port=$telnet_port ..."
     printf "input_phone_verify_code -code=${code}\r\n" | \
-        docker exec -i ${CONTAINER_NAME:-futu-opend} nc -q 2 127.0.0.1 "$telnet_port"
+        compose_exec nc -q 2 127.0.0.1 "$telnet_port"
     echo ""
     echo -e "${GREEN}[DONE]${NC} 验证码已发送，等待 OpenD 验证..."
     sleep 3
@@ -170,7 +180,7 @@ send_verify_code() {
 }
 
 first_login_opend() {
-    if ! docker exec ${CONTAINER_NAME:-futu-opend} true 2>/dev/null; then
+    if ! compose_exec true 2>/dev/null; then
         echo -e "${RED}[ERROR]${NC} 容器未运行，请先执行: $0 start"
         exit 1
     fi
@@ -216,7 +226,7 @@ first_login_opend() {
 
 show_opend_logs() {
     echo -e "${BLUE}[LOGS]${NC} 查看 OpenD 日志 (Ctrl+C 退出)..."
-    docker exec -it ${CONTAINER_NAME:-futu-opend} \
+    compose_exec_interactive \
         sh -c 'tail -f $(ls -t /home/ubuntu/.com.futunn.FutuOpenD/Log/GTWLog_*.log 2>/dev/null | head -1) 2>/dev/null || echo "暂无日志文件"'
 }
 
