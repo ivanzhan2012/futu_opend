@@ -31,6 +31,7 @@ services:
       - FUTU_TELNET_PORT=${FUTU_TELNET_PORT:-22222}
       - AUTO_HOLD_QUOTE_RIGHT=${AUTO_HOLD_QUOTE_RIGHT:-0}
       - RSA_ENCRYPT_ENABLE=${RSA_ENCRYPT_ENABLE:-false}
+      - FUTU_MAX_FAST_RESTARTS=${FUTU_MAX_FAST_RESTARTS:-3}
 
     deploy:
       resources:
@@ -52,6 +53,44 @@ services:
       driver: "json-file"
       options:
         max-size: "10m"
+        max-file: "3"
+
+  # 图形验证码自动识别: 监控 PicVerifyCode.png 落盘 → OCR → telnet 自动提交
+  # 用于消除密码输错后"需要图形验证码"的人工介入
+  captcha-solver:
+    build:
+      context: .
+      dockerfile: Dockerfile.captcha
+
+    image: ${IMAGE_NAME:-futu-opend}-captcha:${IMAGE_TAG:-latest}
+
+    restart: ${RESTART_POLICY:-unless-stopped}
+
+    depends_on:
+      - futu-opend
+
+    volumes:
+      - opend-data:/data:ro
+
+    environment:
+      - TZ=Asia/Shanghai
+      - OPEND_HOST=futu-opend
+      - TELNET_PORT=${FUTU_TELNET_PORT:-22222}
+      - CAPTCHA_MAX_RETRIES=${CAPTCHA_MAX_RETRIES:-10}
+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
         max-file: "3"
 
 volumes:

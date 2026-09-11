@@ -67,10 +67,11 @@ show_help() {
     echo "  ps          查看容器状态"
     echo "  exec        进入容器"
     echo ""
-    echo "OpenD 命令:"
-    echo "  first-login                          首次登录（检测到需要短信验证时，交互式输入验证码）"
-    echo "  input_phone_verify_code -code=XXXXXX 直接发送短信验证码"
-    echo "  opend-logs                           查看 OpenD 日志"
+        echo "OpenD 命令:"
+        echo "  first-login                          首次登录（检测到需要短信验证时，交互式输入验证码）"
+        echo "  input_phone_verify_code -code=XXXXXX 直接发送短信验证码"
+        echo "  captcha-logs                         查看图形验证码自动识别日志"
+        echo "  opend-logs                           查看 OpenD 日志"
     echo ""
     echo "标准流程:"
     echo "  1. $0 start                                    # 启动容器"
@@ -230,6 +231,11 @@ show_opend_logs() {
         sh -c 'tail -f $(ls -t /home/ubuntu/.com.futunn.FutuOpenD/Log/GTWLog_*.log 2>/dev/null | head -1) 2>/dev/null || echo "暂无日志文件"'
 }
 
+show_captcha_logs() {
+    echo -e "${BLUE}[LOGS]${NC} 查看图形验证码自动识别日志 (Ctrl+C 退出)..."
+    docker-compose logs -f --tail=50 captcha-solver
+}
+
 parse_options() {
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -251,7 +257,7 @@ parse_options() {
                 VERIFY_CODE_ARG="$*"
                 break
                 ;;
-            start|stop|restart|rebuild|logs|status|ps|exec|first-login|opend-logs)
+            start|stop|restart|rebuild|logs|status|ps|exec|first-login|captcha-logs|opend-logs)
                 COMMAND="$1"
                 shift
                 ;;
@@ -295,6 +301,9 @@ case "${COMMAND:-help}" in
     input_phone_verify_code)
         code=$(echo "$VERIFY_CODE_ARG" | sed 's/.*-code=\([^ ]*\).*/\1/')
         send_verify_code "$code"
+        ;;
+    captcha-logs)
+        show_captcha_logs
         ;;
     opend-logs)
         show_opend_logs

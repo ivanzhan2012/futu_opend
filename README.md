@@ -106,6 +106,8 @@ python3 verify_opend.py
 | `FUTU_OPEND_IP` | OpenD 监听 IP | `0.0.0.0` |
 | `FUTU_TELNET_IP` | Telnet 监听 IP | `0.0.0.0` |
 | `AUTO_HOLD_QUOTE_RIGHT` | 自动抢回高级行情权限（0/1） | `1` |
+| `CAPTCHA_MAX_RETRIES` | 图形验证码单次会话最大自动识别次数 | `10` |
+| `FUTU_MAX_FAST_RESTARTS` | OpenD 连续快速退出（密码错误/锁定）最大重启次数 | `3` |
 | `IMAGE_NAME` | 镜像名称 | `futu-opend` |
 | `IMAGE_TAG` | 镜像标签 | `latest` |
 | `RESTART_POLICY` | Docker 重启策略 | `unless-stopped` |
@@ -135,6 +137,7 @@ python3 verify_opend.py
 | `exec` | 进入容器 Shell |
 | `first-login` | 交互式短信验证 |
 | `input_phone_verify_code -code=XXXXXX` | 直接发送验证码 |
+| `captcha-logs` | 查看图形验证码自动识别日志 |
 | `opend-logs` | 查看 OpenD GTW 日志 |
 
 ### opend_ctl.sh（容器内）
@@ -159,6 +162,8 @@ python3 verify_opend.py
 ├── deploy_opend.sh          # 部署管理脚本（宿主机使用）
 ├── docker-compose.yml       # Docker Compose 配置
 ├── Dockerfile               # 镜像构建文件
+├── Dockerfile.captcha       # 图形验证码识别镜像（captcha-solver 服务）
+├── captcha_solver.py        # 验证码监控 + OCR + 自动提交脚本
 ├── start.sh                 # 容器启动入口
 ├── opend_ctl.sh             # OpenD 控制脚本（容器内使用）
 ├── generate_futu_pwd_md5.py # 密码 MD5 生成工具
@@ -171,6 +176,35 @@ python3 verify_opend.py
 
 ---
 
+## 图形验证码自动识别（captcha-solver）
+
+**背景**：登录密码输错后，富途服务端会要求图形验证码——即使随后改对密码，也必须先通过一次验证码才能登录成功。这一步原本需要人工看图输入。
+
+`captcha-solver` sidecar 服务将其完全自动化，用户无感知：
+
+1. 监控 OpenD GTW 日志，检测"需要图形验证码"标记
+2. 等待 OpenD 下载 `PicVerifyCode.png`（迟迟未下载时主动通过 telnet 发送 `req_pic_verify_code`）
+3. 使用 ddddocr OCR 识别图片（4 位大写字母 + 数字）
+4. 通过 telnet 自动提交 `input_pic_verify_code -code=XXXX`
+5. 识别错误时 OpenD 会自动换一张新图，继续识别提交，直到通过（上限 `CAPTCHA_MAX_RETRIES` 次）
+
+```bash
+# 查看自动识别过程日志
+./deploy_opend.sh captcha-logs
+
+# 重建（修改 CAPTCHA_MAX_RETRIES 后无需重建，重启容器即可）
+./deploy_opend.sh rebuild
+```
+
+说明与限制：
+
+- **短信验证码无法自动化**（发送到用户手机），首次登录/新设备仍需 `./deploy_opend.sh first-login` 人工输入一次；通过后设备标识持久化，后续重启不再需要
+- 验证码只在密码输错后出现，一旦通过并成功登录，后续重启不会再出现
+- OCR 识别有失败概率，失败自动换图重试属正常现象；超过重试上限会打印日志并停止，此时可手动处理：`./deploy_opend.sh exec` 进入容器后 `telnet 127.0.0.1 22222`
+- captcha-solver 镜像包含 onnxruntime（约 200MB），只读挂载 `opend-data` 卷，不影响主服务
+
+---
+
 ## 注意事项
 
 1. `.env` 和 `.futu_private_key.pem` 不要提交到版本控制（已在 `.gitignore` 中排除）
@@ -178,3 +212,7 @@ python3 verify_opend.py
 3. `opend-data` Docker volume 持久化了设备标识，重建容器无需重新短信验证
 4. 同一台机器跑多个 OpenD 实例时，须使用不同项目目录或 `COMPOSE_PROJECT_NAME`，并错开 `FUTU_OPEND_PORT` / `FUTU_TELNET_PORT`，避免宿主机端口冲突
 5. 本地离线包（`Futu_OpenD_xxx.tar.gz`）放项目根目录即可被构建自动识别，无需提交 git
+6. **密码错误有账号锁定风险**：登录密码连续输错会触发富途服务端临时锁定（当日禁止登录）。防护措施：
+   - captcha-solver 检测到「验证码通过但密码被拒」会立即停止识别，不再消耗登录机会
+   - start.sh 对连续快速退出（密码错误时 OpenD 约 8 秒退出）限制重启次数（`FUTU_MAX_FAST_RESTARTS`，默认 3），超限后容器保持运行等待排查
+   - 出现锁定时 `verify_opend.py` 会明确提示，等待解锁时间后 `./deploy_opend.sh restart` 即可

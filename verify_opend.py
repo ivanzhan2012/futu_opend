@@ -162,6 +162,9 @@ print(f"  {INFO} 最近日志: {latest_gtw.split('/')[-1]}")
 ret_sms, _ = run(compose_exec_cmd("grep", "-q", "req_phone_verify_code", latest_gtw))
 needs_sms = ret_sms == 0
 
+ret_pic, _ = run(compose_exec_cmd("grep", "-q", "需要图形验证码", latest_gtw))
+needs_pic = ret_pic == 0
+
 ret_ready, _ = run(
     compose_exec_cmd("grep", "-q", "ProgramStatusType_Ready", latest_gtw)
 )
@@ -173,6 +176,14 @@ elif needs_sms:
     print(f"  {FAIL} 当前会话需要短信验证码，首次登录未完成")
     print(f"\n  请执行首次登录: ./deploy_opend.sh first-login")
     sys.exit(1)
+elif needs_pic:
+    ret_lock, _ = run(compose_exec_cmd("grep", "-q", "登录出错已达上限", latest_gtw))
+    if ret_lock == 0:
+        print(f"  {FAIL} 账号登录出错已达上限，已被富途服务端临时锁定")
+        print(f"\n  请等待解锁时间后重启: ./deploy_opend.sh restart")
+    else:
+        print(f"  {WARN} 当前会话需要图形验证码（密码输错后触发）")
+        print(f"  captcha-solver 会自动识别提交，可查看进度: ./deploy_opend.sh captcha-logs")
 else:
     print(f"  {WARN} 当前会话未达到 Ready 状态（可能正在登录中）")
 

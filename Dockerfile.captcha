@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Shanghai
+
+# onnxruntime 运行时依赖
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libgomp1 libstdc++6 tzdata && \
+    rm -rf /var/lib/apt/lists/*
+
+# 国内网络默认走清华源, 海外环境构建时可覆盖:
+#   docker-compose build --build-arg PIP_INDEX_URL=https://pypi.org/simple captcha-solver
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip install --no-cache-dir --index-url "${PIP_INDEX_URL}" ddddocr==1.5.6
+
+COPY captcha_solver.py /app/captcha_solver.py
+
+CMD ["python", "-u", "/app/captcha_solver.py"]
