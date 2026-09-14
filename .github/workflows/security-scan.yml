@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0  # 扫描完整历史记录
 
       - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 如果仓库为私有且需要 GITLEAKS_LICENSE，在 GitHub Secrets 中配置
