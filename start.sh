@@ -53,6 +53,18 @@ else
     sed -i "s|<!-- <login_pwd_md5>[^<]*</login_pwd_md5> -->|<!-- <login_pwd_md5>skipped</login_pwd_md5> -->|" "$XML_FILE"
 fi
 
+# OpenD 10.10+ 默认模板移除了 login_account/login_pwd* 节点, 上述 sed 会静默落空;
+# 检测到无登录节点时在 <api_port> 后手工插入 (密码密文存在时只配密文, 与富途规则一致)
+if ! grep -q "<login_account>" "$XML_FILE"; then
+    if [ ${#FUTU_LOGIN_PWD} -eq 32 ] && echo "$FUTU_LOGIN_PWD" | grep -qE '^[a-fA-F0-9]{32}$'; then
+        LOGIN_NODES="<login_account>${FUTU_LOGIN_ACCOUNT}</login_account>\n\t\t<login_pwd_md5>${FUTU_LOGIN_PWD}</login_pwd_md5>"
+    else
+        LOGIN_NODES="<login_account>${FUTU_LOGIN_ACCOUNT}</login_account>\n\t\t<login_pwd>${FUTU_LOGIN_PWD}</login_pwd>"
+    fi
+    sed -i "s|\(<api_port>[^<]*</api_port>\)|\1\n\t\t${LOGIN_NODES}|" "$XML_FILE"
+    echo "[init] 模板无登录节点(OpenD>=10.10), 已插入登录配置"
+fi
+
 FUTU_TELNET_IP="${FUTU_TELNET_IP:-0.0.0.0}"
 FUTU_TELNET_PORT="${FUTU_TELNET_PORT:-22222}"
 echo "[init] 注入 telnet 配置: ip=$FUTU_TELNET_IP port=$FUTU_TELNET_PORT"
