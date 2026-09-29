@@ -20,7 +20,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ${FUTU_PRIVATE_KEY:-./.futu_private_key.pem}:/opt/.futu_private_key.pem:ro
-      - ${OPEND_DATA_VOLUME:-opend-data}:/home/ubuntu/.com.futunn.FutuOpenD
+      - opend-data:/home/ubuntu/.com.futunn.FutuOpenD
 
     environment:
       - TZ=Asia/Shanghai

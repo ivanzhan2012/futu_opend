@@ -1,5 +1,4 @@
-# syntax=docker/dockerfile:1
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # 避免交互式提示
 ENV DEBIAN_FRONTEND=noninteractive
@@ -8,12 +7,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# 配置阿里云源
-RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list && \
-    sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list && \
-    echo "deb http://mirrors.aliyun.com/ubuntu/ jammy main restricted universe multiverse" > /etc/apt/sources.list.d/aliyun.list && \
-    echo "deb http://mirrors.aliyun.com/ubuntu/ jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list.d/aliyun.list && \
-    echo "deb http://mirrors.aliyun.com/ubuntu/ jammy-security main restricted universe multiverse" >> /etc/apt/sources.list.d/aliyun.list
+# 配置阿里云源（Ubuntu 24.04 使用 DEB822 格式）
+RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g; s|http://security.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources
 
 # 安装运行时依赖
 RUN apt-get clean && \
@@ -38,8 +33,7 @@ ARG FUTU_OPEND_PKG_NAME=Futu_OpenD_10.5.6508_Ubuntu18.04
 
 ENV FUTU_OPEND_PORT=$FUTU_OPEND_PORT
 
-# 创建非 root 用户 ubuntu，用于运行 FutuOpenD
-RUN useradd -m -s /bin/bash ubuntu
+RUN id ubuntu &>/dev/null || useradd -m -s /bin/bash ubuntu
 
 # 创建必要目录
 RUN mkdir -p /app/logs \
