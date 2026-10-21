@@ -319,7 +319,7 @@ def _query_accounts(host, port):
         for env_key, group in env_groups.items():
             print(f"\n  {env_key} ({len(group)} 个账户):")
             for row in group:
-                cols = ["acc_id", "trd_env", "acc_type", "card_num"]
+                cols = ["acc_id", "trd_env", "acc_type", "uni_card_num", "card_num"]
                 info = "  ".join(f"{c}={row[c]}" for c in cols if c in row)
                 if UIN_NUM:
                     info = f"uin_num={UIN_NUM}  " + info
