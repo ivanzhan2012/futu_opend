@@ -237,6 +237,18 @@ print(f"  {PASS} 成功连接 OpenD  {OPEND_HOST}:{OPEND_PORT}")
 # ── 7. 全局状态 ───────────────────────────────────────────────────────────────
 separator("全局状态")
 
+UIN_NUM = None
+
+try:
+    ret_u, user_info = quote_ctx.get_user_info()
+    if ret_u == futu.RET_OK and isinstance(user_info, dict):
+        UIN_NUM = str(user_info.get("user_id") or "") or None
+        if UIN_NUM:
+            nick = user_info.get("nick_name", "N/A")
+            print(f"  {'牛牛号(uin)':<12}: {UIN_NUM}  昵称: {nick}")
+except Exception as e:
+    print(f"  {WARN} 获取牛牛号(uin_num)失败: {e}")
+
 old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
 try:
     signal.alarm(API_TIMEOUT)
@@ -309,6 +321,8 @@ def _query_accounts(host, port):
             for row in group:
                 cols = ["acc_id", "trd_env", "acc_type", "card_num"]
                 info = "  ".join(f"{c}={row[c]}" for c in cols if c in row)
+                if UIN_NUM:
+                    info = f"uin_num={UIN_NUM}  " + info
                 print(f"    · {info}")
         return total, None
     except Exception as e:
